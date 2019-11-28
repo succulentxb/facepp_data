@@ -1,0 +1,6 @@
+data.*
+venv/
+imgs/**
+.idea/
+.DS_Store
+!imgs/README.md
