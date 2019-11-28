@@ -1,7 +1,7 @@
 import os
 import time
 import requests
-import xlsxwriter
+import xlsxwriter  # 使用该依赖包，可避免单个单个单元格最大字符数限制
 
 IMGS_FOLDER_NAME = "imgs"
 FACEPP_URL = "https://api-cn.faceplusplus.com/facepp/v1/face/thousandlandmark"
