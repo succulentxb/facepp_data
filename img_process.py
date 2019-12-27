@@ -7,7 +7,7 @@ from PIL import Image, ImageDraw
 
 # 本文件依赖于face_data.py产生的数据
 
-# 图片路径类型，若读取本地文件则使用local, 若读取远程图片则是哟哦那个url
+# 图片路径类型，若读取本地文件则使用local, 若读取远程图片则使用url
 PATHTYPE = "url"  # url or local
 
 # 若使用远程图片，则将远程图片信息存在下面的文件中, 数据格式应与face++_589.xlsx保持一致
