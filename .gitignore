@@ -4,3 +4,9 @@ imgs/**
 .idea/
 .DS_Store
 !imgs/README.md
+.vscode/
+origin/
+processed/imgs/**
+processed/web/**
+!processed/imgs/README.md
+!processed/web/README.md

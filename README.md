@@ -1,12 +1,19 @@
 ## Face++ 人脸稠密点数据自动收集
 
-### 运行环境安装
-- 在电脑上安装`virtualenv`  
-- 新建Python虚拟环境: `virtualenv -p python3 --no-site-packages venv`  
-- 激活虚拟环境: `source venv/bin/activate`  
+### 环境配置(以下为Linux/Mac环境配置)
+- 在电脑安装`Python`环境，要求`python3` 
+- 安装虚拟环境，`pip install virtualenv`
+- 安装虚拟环境后，在该项目目录下创建虚拟环境`virtualenv -p python3 --no-site-packages venv`
+- 激活虚拟环境`source ./venv/bin/activate`
+- 安装依赖包`pip install -r requirements.txt`
 
+### 获取图片人脸识别信息
+- 本功能代码实现在`face_data.py`，具体的配置说明写在`face_data.py`的注释中
+- 配置好后，运行`python face_data.py`
 
-### 运行程序
-- 将所需分析的图片放在imgs文件夹下  
-- 运行`python main.py`  
-- 结果产出在data.xlsx中
+### 处理人脸图片，加点
+- 本功能代码实现在`img_process.py`中，具体的配置说明在`img_process.py`中
+- 配置好后，运行`python img_process.py`
+
+### 下载远程图片
+- 功能代码实现在`img_download.py`中，运行`python img_download.py`
