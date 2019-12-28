@@ -84,7 +84,7 @@ LANDMARK_SETTINGS = [
         "fields": [
             {"field": "nose_left_", "range": (0, 63), "item": ["x", "y"]},
             {"field": "nose_right_", "range": (0, 63), "item": ["x", "y"]},
-            {"field": "left_nostril", "range": None, "item": ["x", "y"]},
+            {"field": "right_nostril", "range": None, "item": ["x", "y"]},
             {"field": "left_nostril", "range": None, "item": ["x", "y"]},
             {"field": "nose_midline_", "range": (0, 60), "item": ["x", "y"]}
         ]
