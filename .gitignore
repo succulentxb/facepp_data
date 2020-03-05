@@ -10,3 +10,7 @@ processed/imgs/**
 processed/web/**
 !processed/imgs/README.md
 !processed/web/README.md
+__pycache__/
+insect/
+insect.xlsx
+*.xlsx

@@ -1,22 +1,38 @@
 import os
 import time
 import json
+import logging
 
 import requests
 import xlrd
 import xlsxwriter  # 使用该依赖包，可避免单个单个单元格最大字符数限制
 
+# 修改此处，调整数据读取模式
 # 支持两种MODE, 1读取本地图片文件进行分析, 2读取表格内数据进行请求分析
-DATA_MODE = 1
+DATA_MODE = 2
 
 # 如果需要读取本地文件，则将图片放在该目录下
-IMGS_FOLDER_NAME = "imgs"
+IMGS_FOLDER_NAME = "origin"
 
 # 如果使用读取表格内数据，则将下面变量修改为表格文件名，表格数据格式要求与face++_589.xlsx一致
 IMGS_EXCEL_FILENAME = "face++_589.xlsx"
 
 # Face++ API 接口地址，请勿修改
-FACEPP_URL = "https://api-cn.faceplusplus.com/facepp/v1/face/thousandlandmark"
+FACEPP_DENSE_URL = "https://api-cn.faceplusplus.com/facepp/v1/face/thousandlandmark"
+FACEPP_FACIAL_FEATURE_URL = "https://api-cn.faceplusplus.com/facepp/v1/facialfeatures"
+
+# 调用接口枚举
+METHOD_DENSE = 1  # 人脸稠密点分析
+METHOD_FACIAL_FEATURE = 2  # 面部特征识别
+
+METHOD_URL_MAP = {
+    METHOD_DENSE: FACEPP_DENSE_URL,
+    METHOD_FACIAL_FEATURE: FACEPP_FACIAL_FEATURE_URL
+}
+
+# 修改此处，指定调用方法
+# 指定调用方法，候选项为上面的接口枚举
+METHOD = METHOD_FACIAL_FEATURE
 
 # Face++ API_KEY, API_SECRET, 此处为了安全隐去值，运行时需重新填上
 API_KEY = "oDfy0oKBV9tVCb4du72I3Bz7casKd9gD"
@@ -27,10 +43,11 @@ API_SECRET = "kQxG4MnqNeUAIiYxMEgBMMQl9ZWsi2eS"
 TIME_LATENCY = 1
 
 # 结果输出文件
-RESULT_FILE = "data_new.xlsx"
+RESULT_FILE = "feature_data_589.xlsx"
 
 # 数据解析结构，请勿自行修改
-LANDMARK_SETTINGS = [
+# 人脸稠密点返回结果解析
+DENSE_LANDMARK_SETTINGS = [
     {
         "landmark": "face",
         "fields": [
@@ -98,6 +115,8 @@ LANDMARK_SETTINGS = [
     }
 ]
 
+logging.basicConfig(level=logging.INFO)
+
 
 class ImgPath:
     URL_PATH_TYPE = 1
@@ -134,34 +153,37 @@ def read_excel_img_list(filename=IMGS_EXCEL_FILENAME):
     return imgs
 
 
-def facepp_post(img_file=None, img_url=None):
-    if not img_file and not img_url:
-        print("[WARNING] [facepp_post] invalid param")
+def facepp_post(method, img_file=None, params=None):
+    if method not in METHOD_URL_MAP:
+        logging.error("[facepp_post] invalid method")
         return None
-    files = {"image_file": img_file} if img_file else None
-    params = {
+    url = METHOD_URL_MAP[method]
+    files = None
+    if img_file:
+        files = {"image_file": img_file}
+    post_params = {
         "api_key": API_KEY,
         "api_secret": API_SECRET,
-        "return_landmark": "all",
+        # "return_landmark": "all",
     }
-    if img_url:
-        params["image_url"] = img_url
-    response = requests.post(FACEPP_URL, data=params, files=files)
+    if params:
+        post_params.update(params)
+    # if img_url:
+    #     post_params["image_url"] = img_url
+    response = requests.post(url, data=post_params, files=files)
     if response.status_code != 200:
-        print("[ERROR] [facepp_post] failed request data for img=%s, response=%s" %
-              (img_file.name if img_file else img_url, response.json()))
+        logging.error("[facepp_post] failed request data, http status code=%s" % response.status_code)
         return None
     r_data = response.json()
-    if not r_data.get("face"):
-        print("[ERROR] [facepp_post] failed request data for img=%s, response=%s" %
-              (img_file.name if img_file else img_url, r_data))
+    if r_data.get("error_message"):
+        logging.error("[facepp_post] failed request data, error_message=%s" % r_data.get("error_message"))
         return None
-    return r_data.get("face")
+    return r_data
 
 
 def get_data_headers():
     headers = []
-    for lm in LANDMARK_SETTINGS:
+    for lm in DENSE_LANDMARK_SETTINGS:
         fields = lm.get("fields")
         for field in fields:
             field_prefix = field.get("field")
@@ -182,27 +204,35 @@ def get_data_headers():
     return headers
 
 
-def fetch_imgs_data(img_list):
+def fetch_imgs_data(img_list, method, retry=10):
     failed_list = img_list
     result_list = []
-    while len(failed_list) > 0:
+    while len(failed_list) > 0 and retry > 0:
         img_list = failed_list
         failed_list = []
 
         for img in img_list:
             if not img:
                 continue
-            print("[INFO] [process_imgs] processing img=%s" % img.uri)
+            logging.info("[process_imgs] processing img=%s" % img.uri)
             try:
                 time.sleep(TIME_LATENCY)
                 resp = None
+                params = {}
+                if method == METHOD_DENSE:
+                    params = {"return_landmark": "all"}
+                elif method == METHOD_FACIAL_FEATURE:
+                    pass
+
                 if img.uri_type == ImgPath.FILE_PATH_TYPE:
                     img_file = open(os.path.join(os.curdir, img.uri), "rb")
-                    resp = facepp_post(img_file=img_file)
+                    resp = facepp_post(method=method, img_file=img_file, params=params)
                 elif img.uri_type == ImgPath.URL_PATH_TYPE:
-                    resp = facepp_post(img_url=img.uri)
+                    params["image_url"] = img.uri
+                    resp = facepp_post(method=method, params=params)
+
                 if not resp:
-                    print("[ERROR] [process_imgs] failed process img=%s" % img.uri)
+                    logging.error("[process_imgs] failed process img=%s" % img.uri)
                     failed_list.append(img)
                     continue
 
@@ -211,13 +241,14 @@ def fetch_imgs_data(img_list):
                     "data": resp
                 })
             except Exception as e:
-                print("[ERROR] [process_imgs] error while process img=%s, err=%s" % (img.uri, e))
+                logging.error("[process_imgs] error while process img=%s, err=%s" % (img.uri, e))
                 failed_list.append(img)
-        print("[INFO] failed list = %s" % failed_list)
+        logging.info("failed list = %s" % failed_list)
+        retry -= 1
     return result_list
 
 
-def write_data(result_list):
+def write_dense_data(result_list):
     header = ["img_name", "img_path", "origin_data"] + get_data_headers()
     workbook = xlsxwriter.Workbook(RESULT_FILE)
     sheet = workbook.add_worksheet("default")
@@ -228,13 +259,14 @@ def write_data(result_list):
         if not result:
             continue
         img = result.get("img")
-        origin_data = result.get("data", {})
+        resp_data = result.get("data", {})
+        origin_data = resp_data.get("face", {})
         data = origin_data.get("landmark")
         if not data:
-            print("[ERROR] [write_data] no data for img=%s" % img.name)
+            logging.error("[write_data] no data for img=%s" % img.name)
             continue
         row_data = [img.name, img.uri, json.dumps(origin_data)]
-        for lm in LANDMARK_SETTINGS:
+        for lm in DENSE_LANDMARK_SETTINGS:
             landmark = lm.get("landmark")
             lm_data = data.get(landmark)
             fields = lm.get("fields")
@@ -263,12 +295,65 @@ def write_data(result_list):
     workbook.close()
 
 
+FEATURE_DATA_HEADERS = ['angulus_oculi_medialis', 'eyes_type', 'eye_height', 'eye_width',
+                        'mouth_height', 'mouth_width', 'lip_thickness', 'mouth_type', 'angulus_oris',
+                        'golden_triangle', 'eyes_ratio', 'righteye_empty_result', 'righteye_empty_length',
+                        'righteye_empty_ratio', 'lefteye_empty_result', 'lefteye_empty_length', 'lefteye_empty_ratio',
+                        'lefteye', 'eyein_ratio', 'eyein_result', 'eyein_length', 'righteye', 'jaw_type', 'jaw_length',
+                        'jaw_width', 'jaw_angle', 'faceup_ratio', 'faceup_result', 'faceup_length', 'facedown_length',
+                        'facedown_result', 'facedown_ratio', 'facemid_length', 'facemid_ratio', 'facemid_result',
+                        'parts_ratio', 'nose_width', 'nose_type', 'eyebrow_type', 'brow_height', 'brow_camber_angle',
+                        'brow_uptrend_angle', 'brow_width', 'brow_thick', 'face_length', 'E', 'ABD_ratio',
+                        'mandible_length', 'tempus_length', 'face_type', 'zygoma_length']
+
+
+def write_feature_data(result_list):
+    headers = ["img_name", "img_path", "origin_data"] + FEATURE_DATA_HEADERS
+    workbook = xlsxwriter.Workbook(RESULT_FILE)
+    sheet = workbook.add_worksheet("default")
+    for i in range(len(headers)):
+        sheet.write(0, i, headers[i])
+    rown = 1
+    for result in result_list:
+        if not result:
+            continue
+        img = result.get("img")
+        resp_data = result.get("data")
+        origin_data = resp_data.get("result")
+        row_data = [img.name, img.uri, json.dumps(origin_data)]
+        leafs = parse_all_dict_leaf(origin_data)
+        for header in FEATURE_DATA_HEADERS:
+            row_data.append(leafs.get(header))
+
+        for i in range(len(row_data)):
+            sheet.write(rown, i, row_data[i])
+        rown += 1
+    workbook.close()
+
+
+def parse_all_dict_leaf(dic):
+    if type(dic) is dict:
+        leaf_list = {}
+        for k, v in dic.items():
+            parse_res = parse_all_dict_leaf(v)
+            if parse_res is None:
+                leaf_list[k] = v
+            else:
+                leaf_list.update(parse_res)
+        return leaf_list
+    return None
+
+
 if __name__ == "__main__":
     imgs = None
     if DATA_MODE == 2:
         imgs = read_excel_img_list()
-    if DATA_MODE == 1:
+    elif DATA_MODE == 1:
         imgs = get_folder_img_list()
-    results = fetch_imgs_data(imgs)
-    write_data(results)
-    print("[INFO] [main] data done!")
+    method = METHOD
+    results = fetch_imgs_data(imgs, method)
+    if method == METHOD_FACIAL_FEATURE:
+        write_feature_data(results)
+    elif method == METHOD_DENSE:
+        write_dense_data(results)
+    logging.info("[main] data done!")

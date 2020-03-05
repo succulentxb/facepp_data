@@ -3,8 +3,8 @@ import os
 import xlrd
 import requests
 
-IMG_FOLDER = "origin"
-EXCEL_NAME = "face++_589.xlsx"
+IMG_FOLDER = "insect"
+EXCEL_NAME = "insect.xlsx"
 
 
 def download_img(url, img_name):
@@ -24,10 +24,10 @@ def read_img_info(filename=EXCEL_NAME):
     imgs = []
     for row in sheet.get_rows():
         imgs.append({
-            "name": row[1].value,
-            "url": row[2].value
+            "name": row[2].value + ".jpg",
+            "url": row[1].value
         })
-    return imgs
+    return imgs[1:]
 
 
 if __name__ == "__main__":
@@ -36,4 +36,3 @@ if __name__ == "__main__":
         print("[INFO] start downloading img, url=%s, name=%s" % (img["url"], img["name"]))
         download_img(img["url"], img["name"])
     print("[INFO] download done.")
-    
