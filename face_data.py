@@ -9,10 +9,10 @@ import xlsxwriter  # 使用该依赖包，可避免单个单个单元格最大�
 
 # 修改此处，调整数据读取模式
 # 支持两种MODE, 1读取本地图片文件进行分析, 2读取表格内数据进行请求分析
-DATA_MODE = 2
+DATA_MODE = 1
 
 # 如果需要读取本地文件，则将图片放在该目录下
-IMGS_FOLDER_NAME = "origin"
+IMGS_FOLDER_NAME = "many_origin"
 
 # 如果使用读取表格内数据，则将下面变量修改为表格文件名，表格数据格式要求与face++_589.xlsx一致
 IMGS_EXCEL_FILENAME = "face++_589.xlsx"
@@ -32,18 +32,18 @@ METHOD_URL_MAP = {
 
 # 修改此处，指定调用方法
 # 指定调用方法，候选项为上面的接口枚举
-METHOD = METHOD_FACIAL_FEATURE
+METHOD = METHOD_DENSE
 
 # Face++ API_KEY, API_SECRET, 此处为了安全隐去值，运行时需重新填上
-API_KEY = "oDfy0oKBV9tVCb4du72I3Bz7casKd9gD"
-API_SECRET = "kQxG4MnqNeUAIiYxMEgBMMQl9ZWsi2eS"
+API_KEY = "o3_cIVBPuV5UiDXgX0v9PM0eJMZB5djl"
+API_SECRET = "YgzUh-B6ryMYOEzkj3XbOvWQuF9p72hL"
 
 # 每次请求间延迟，防止qps超限导致失败，修改此处可以调整程序运行速度
 # 但是延时过低会使请求失败率升高
-TIME_LATENCY = 1
+TIME_LATENCY = 1.5
 
 # 结果输出文件
-RESULT_FILE = "feature_data_589.xlsx"
+RESULT_FILE = "feature_data_20200911.xlsx"
 
 # 数据解析结构，请勿自行修改
 # 人脸稠密点返回结果解析
@@ -164,7 +164,7 @@ def facepp_post(method, img_file=None, params=None):
     post_params = {
         "api_key": API_KEY,
         "api_secret": API_SECRET,
-        # "return_landmark": "all",
+        "return_landmark": "all"
     }
     if params:
         post_params.update(params)
@@ -240,6 +240,7 @@ def fetch_imgs_data(img_list, method, retry=10):
                     "img": img,
                     "data": resp
                 })
+                logging.info("[process_imgs] success img=%s" % img.uri)
             except Exception as e:
                 logging.error("[process_imgs] error while process img=%s, err=%s" % (img.uri, e))
                 failed_list.append(img)
