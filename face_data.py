@@ -40,10 +40,10 @@ API_SECRET = "YgzUh-B6ryMYOEzkj3XbOvWQuF9p72hL"
 
 # 每次请求间延迟，防止qps超限导致失败，修改此处可以调整程序运行速度
 # 但是延时过低会使请求失败率升高
-TIME_LATENCY = 1.5
+TIME_LATENCY = 0.5
 
 # 结果输出文件
-RESULT_FILE = "feature_data_20200911.xlsx"
+RESULT_FILE = "feature_data_20200918.xlsx"
 
 # 数据解析结构，请勿自行修改
 # 人脸稠密点返回结果解析
@@ -122,10 +122,11 @@ class ImgPath:
     URL_PATH_TYPE = 1
     FILE_PATH_TYPE = 2
 
-    def __init__(self, name, uri_type, uri):
+    def __init__(self, name, uri_type, uri, retry=20):
         self.uri_type = uri_type
         self.uri = uri
         self.name = name
+        self.retry = retry
 
     def __hash__(self):
         return hash(self.name+self.uri)
@@ -207,55 +208,70 @@ def get_data_headers():
 def fetch_imgs_data(img_list, method, retry=10):
     failed_list = img_list
     result_list = []
-    while len(failed_list) > 0 and retry > 0:
-        img_list = failed_list
-        failed_list = []
+    try:
+        while len(failed_list) > 0 and retry > 0:
+            img_list = failed_list
+            failed_list = []
 
-        for img in img_list:
-            if not img:
-                continue
-            logging.info("[process_imgs] processing img=%s" % img.uri)
-            try:
-                time.sleep(TIME_LATENCY)
-                resp = None
-                params = {}
-                if method == METHOD_DENSE:
-                    params = {"return_landmark": "all"}
-                elif method == METHOD_FACIAL_FEATURE:
-                    pass
-
-                if img.uri_type == ImgPath.FILE_PATH_TYPE:
-                    img_file = open(os.path.join(os.curdir, img.uri), "rb")
-                    resp = facepp_post(method=method, img_file=img_file, params=params)
-                elif img.uri_type == ImgPath.URL_PATH_TYPE:
-                    params["image_url"] = img.uri
-                    resp = facepp_post(method=method, params=params)
-
-                if not resp:
-                    logging.error("[process_imgs] failed process img=%s" % img.uri)
-                    failed_list.append(img)
+            for img in img_list:
+                if not img:
                     continue
+                logging.info("[process_imgs] processing img=%s" % img.uri)
+                try:
+                    time.sleep(TIME_LATENCY)
+                    resp = None
+                    params = {}
+                    if method == METHOD_DENSE:
+                        params = {"return_landmark": "all"}
+                    elif method == METHOD_FACIAL_FEATURE:
+                        pass
 
-                result_list.append({
-                    "img": img,
-                    "data": resp
-                })
-                logging.info("[process_imgs] success img=%s" % img.uri)
-            except Exception as e:
-                logging.error("[process_imgs] error while process img=%s, err=%s" % (img.uri, e))
-                failed_list.append(img)
-        logging.info("failed list = %s" % failed_list)
-        retry -= 1
+                    if img.uri_type == ImgPath.FILE_PATH_TYPE:
+                        img_file = open(os.path.join(os.curdir, img.uri), "rb")
+                        resp = facepp_post(method=method, img_file=img_file, params=params)
+                        img_file.close()
+                    elif img.uri_type == ImgPath.URL_PATH_TYPE:
+                        params["image_url"] = img.uri
+                        resp = facepp_post(method=method, params=params)
+
+                    if not resp:
+                        logging.error("[process_imgs] failed process img=%s" % img.uri)
+                        failed_list.append(img)
+                        continue
+
+                    result_list.append({
+                        "img": img,
+                        "data": resp
+                    })
+                    logging.info("[process_imgs] success img=%s" % img.uri)
+                except KeyboardInterrupt as e:
+                    raise e
+                except Exception as e:
+                    logging.error("[process_imgs] error while process img=%s, err=%s" % (img.uri, e))
+                    failed_list.append(img)
+            logging.info("failed list = %s" % failed_list)
+            retry -= 1
+    except KeyboardInterrupt as e:
+        print("[process_imgs] user key interrupt, data saving, please not quit.")
+        return result_list
+
     return result_list
 
 
-def write_dense_data(result_list):
+def write_dense_data(result_list, start_row):
     header = ["img_name", "img_path", "origin_data"] + get_data_headers()
-    workbook = xlsxwriter.Workbook(RESULT_FILE)
-    sheet = workbook.add_worksheet("default")
-    for i in range(len(header)):
-        sheet.write(0, i, header[i])
-    rown = 1
+    # workbook = xlsxwriter.Workbook(RESULT_FILE)
+    # sheet = None
+    rown = start_row
+    if rown > 0:
+        workbook = copy_xlsx(RESULT_FILE)
+        sheet = workbook.get_worksheet_by_name("default")
+    else:
+        workbook = xlsxwriter.Workbook(RESULT_FILE)
+        sheet = workbook.add_worksheet("default")
+        for i in range(len(header)):
+            sheet.write(0, i, header[i])
+        rown += 1
     for result in result_list:
         if not result:
             continue
@@ -308,13 +324,20 @@ FEATURE_DATA_HEADERS = ['angulus_oculi_medialis', 'eyes_type', 'eye_height', 'ey
                         'mandible_length', 'tempus_length', 'face_type', 'zygoma_length']
 
 
-def write_feature_data(result_list):
+def write_feature_data(result_list, start_row):
     headers = ["img_name", "img_path", "origin_data"] + FEATURE_DATA_HEADERS
-    workbook = xlsxwriter.Workbook(RESULT_FILE)
-    sheet = workbook.add_worksheet("default")
-    for i in range(len(headers)):
-        sheet.write(0, i, headers[i])
-    rown = 1
+    # workbook = xlsxwriter.Workbook(RESULT_FILE)
+    # sheet = workbook.add_worksheet("default")
+    rown = start_row
+    if rown > 0:
+        workbook = copy_xlsx(RESULT_FILE)
+        sheet = workbook.get_worksheet_by_name("default")
+    else:
+        workbook = xlsxwriter.Workbook(RESULT_FILE)
+        sheet = workbook.add_worksheet("default")
+        for i in range(len(headers)):
+            sheet.write(0, i, headers[i])
+        rown += 1
     for result in result_list:
         if not result:
             continue
@@ -345,16 +368,53 @@ def parse_all_dict_leaf(dic):
     return None
 
 
+def success_img_list(xlsx_file):
+    start_row = 0
+    try:
+        workbook = xlrd.open_workbook(xlsx_file)
+    except FileNotFoundError:
+        return [], start_row
+    if workbook is None:
+        return [], start_row
+    sheet = workbook.sheet_by_name("default")
+    if sheet is None:
+        return [], start_row
+    rows = sheet.get_rows()
+    start_row = sheet.nrows
+    img_name_list = []
+    for row in rows:
+        img_name_list.append(row[0].value)
+    return img_name_list[1:], start_row
+
+
+def copy_xlsx(filename):
+    wk_r = xlrd.open_workbook(filename)
+    wk_w = xlsxwriter.Workbook(filename)
+    sheet_r = wk_r.sheet_by_name("default")
+    sheet_w = wk_w.add_worksheet("default")
+    nrow = 0
+    for row in sheet_r.get_rows():
+        for ncol in range(len(row)):
+            sheet_w.write(nrow, ncol, row[ncol].value)
+        nrow += 1
+    return wk_w
+
+
 if __name__ == "__main__":
     imgs = None
     if DATA_MODE == 2:
         imgs = read_excel_img_list()
     elif DATA_MODE == 1:
         imgs = get_folder_img_list()
+    success_list, start_r = success_img_list(RESULT_FILE)
+    filtered_imgs = []
+    for img in imgs:
+        if img.name not in success_list:
+            filtered_imgs.append(img)
     method = METHOD
-    results = fetch_imgs_data(imgs, method)
+    results = fetch_imgs_data(filtered_imgs, method)
     if method == METHOD_FACIAL_FEATURE:
-        write_feature_data(results)
+        write_feature_data(results, start_r)
     elif method == METHOD_DENSE:
-        write_dense_data(results)
+        write_dense_data(results, start_r)
     logging.info("[main] data done!")

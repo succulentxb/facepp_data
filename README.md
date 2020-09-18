@@ -15,7 +15,7 @@
 
 ### 获取图片人脸识别信息
 - 本功能代码实现在`face_data.py`，具体的配置说明写在`face_data.py`的注释中，其中
-- 配置好后，运行`python face_data.py`
+- 配置好后，运行`python face_data.py` 
 
 ### 处理人脸图片，加点
 - 本功能代码实现在`img_process.py`中，具体的配置说明在`img_process.py`中
