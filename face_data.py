@@ -13,10 +13,10 @@ import xlsxwriter  # 使用该依赖包，可避免单个单个单元格最大�
 DATA_MODE = 1
 
 # 每处理多少张照片保存一次
-BATCH_SIZE = 10
+BATCH_SIZE = 100
 
 # 如果需要读取本地文件，则将图片放在该目录下
-IMGS_FOLDER_NAME = "origin"
+IMGS_FOLDER_NAME = "many_origin"
 
 # 如果使用读取表格内数据，则将下面变量修改为表格文件名，表格数据格式要求与face++_589.xlsx一致
 IMGS_EXCEL_FILENAME = "face++_589.xlsx"
