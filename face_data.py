@@ -2,6 +2,7 @@ import os
 import time
 import json
 import logging
+import math
 
 import requests
 import xlrd
@@ -11,8 +12,11 @@ import xlsxwriter  # 使用该依赖包，可避免单个单个单元格最大�
 # 支持两种MODE, 1读取本地图片文件进行分析, 2读取表格内数据进行请求分析
 DATA_MODE = 1
 
+# 每处理多少张照片保存一次
+BATCH_SIZE = 10
+
 # 如果需要读取本地文件，则将图片放在该目录下
-IMGS_FOLDER_NAME = "many_origin"
+IMGS_FOLDER_NAME = "origin"
 
 # 如果使用读取表格内数据，则将下面变量修改为表格文件名，表格数据格式要求与face++_589.xlsx一致
 IMGS_EXCEL_FILENAME = "face++_589.xlsx"
@@ -253,7 +257,9 @@ def fetch_imgs_data(img_list, method, retry=10):
             retry -= 1
     except KeyboardInterrupt as e:
         print("[process_imgs] user key interrupt, data saving, please not quit.")
-        return result_list
+        # give the batch data
+        raise e
+        # return result_list
 
     return result_list
 
@@ -264,7 +270,7 @@ def write_dense_data(result_list, start_row):
     # sheet = None
     rown = start_row
     if rown > 0:
-        workbook = copy_xlsx(RESULT_FILE)
+        workbook, rown = copy_xlsx(RESULT_FILE)
         sheet = workbook.get_worksheet_by_name("default")
     else:
         workbook = xlsxwriter.Workbook(RESULT_FILE)
@@ -310,6 +316,7 @@ def write_dense_data(result_list, start_row):
             sheet.write(rown, i, row_data[i])
         rown += 1
     workbook.close()
+    return rown
 
 
 FEATURE_DATA_HEADERS = ['angulus_oculi_medialis', 'eyes_type', 'eye_height', 'eye_width',
@@ -330,7 +337,7 @@ def write_feature_data(result_list, start_row):
     # sheet = workbook.add_worksheet("default")
     rown = start_row
     if rown > 0:
-        workbook = copy_xlsx(RESULT_FILE)
+        workbook, rown = copy_xlsx(RESULT_FILE)
         sheet = workbook.get_worksheet_by_name("default")
     else:
         workbook = xlsxwriter.Workbook(RESULT_FILE)
@@ -353,6 +360,7 @@ def write_feature_data(result_list, start_row):
             sheet.write(rown, i, row_data[i])
         rown += 1
     workbook.close()
+    return rown
 
 
 def parse_all_dict_leaf(dic):
@@ -397,7 +405,7 @@ def copy_xlsx(filename):
         for ncol in range(len(row)):
             sheet_w.write(nrow, ncol, row[ncol].value)
         nrow += 1
-    return wk_w
+    return wk_w, nrow
 
 
 if __name__ == "__main__":
@@ -412,9 +420,24 @@ if __name__ == "__main__":
         if img.name not in success_list:
             filtered_imgs.append(img)
     method = METHOD
-    results = fetch_imgs_data(filtered_imgs, method)
-    if method == METHOD_FACIAL_FEATURE:
-        write_feature_data(results, start_r)
-    elif method == METHOD_DENSE:
-        write_dense_data(results, start_r)
+    try:
+        batch = 0
+        for batch in range(math.floor(len(filtered_imgs)/BATCH_SIZE)):
+            logging.info("[main] start batch=%s" % batch)
+            img_batch = filtered_imgs[batch*BATCH_SIZE: (batch+1)*BATCH_SIZE]
+            batch_result = fetch_imgs_data(img_batch, method)
+            if method == METHOD_FACIAL_FEATURE:
+                start_r = write_feature_data(batch_result, start_r)
+            elif method == METHOD_DENSE:
+                start_r = write_dense_data(batch_result, start_r)
+            logging.info("[main] saved batch=%s" % batch)
+        last_batch = filtered_imgs[(batch+1)*BATCH_SIZE:]
+        logging.info("[main] start last batch")
+        batch_result = fetch_imgs_data(last_batch, method)
+        if method == METHOD_FACIAL_FEATURE:
+            start_r = write_feature_data(batch_result, start_r)
+        elif method == METHOD_DENSE:
+            start_r = write_dense_data(batch_result, start_r)
+    except KeyboardInterrupt:
+        logging.info("[main] program paused.")
     logging.info("[main] data done!")
