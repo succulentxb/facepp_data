@@ -384,14 +384,18 @@ def success_img_list(xlsx_file):
         return [], start_row
     if workbook is None:
         return [], start_row
+    logging.info("[success_img_list] workbook opened.")
     sheet = workbook.sheet_by_name("default")
     if sheet is None:
         return [], start_row
+    logging.info("[success_img_list] sheet opened.")
     rows = sheet.get_rows()
     start_row = sheet.nrows
     img_name_list = []
+    logging.info("[success_img_list] excel reading...")
     for row in rows:
         img_name_list.append(row[0].value)
+    logging.info("[success_img_list] excel read done!")
     return img_name_list[1:], start_row
 
 
