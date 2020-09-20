@@ -13,7 +13,7 @@ import xlsxwriter  # 使用该依赖包，可避免单个单个单元格最大�
 DATA_MODE = 1
 
 # 每处理多少张照片保存一次
-BATCH_SIZE = 100
+BATCH_SIZE = 500
 
 # 如果需要读取本地文件，则将图片放在该目录下
 IMGS_FOLDER_NAME = "many_origin"
