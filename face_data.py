@@ -379,6 +379,7 @@ def parse_all_dict_leaf(dic):
 def success_img_list(xlsx_file):
     start_row = 0
     try:
+        logging.info("[success_img_list] workbook opening...")
         workbook = xlrd.open_workbook(xlsx_file)
     except FileNotFoundError:
         return [], start_row
